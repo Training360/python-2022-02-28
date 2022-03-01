@@ -1,0 +1,12 @@
+h1 {
+    color: red;
+}
+
+.not-so-large-header {
+    font-size: 12px;
+    color: blue;
+}
+
+#name-input {
+    border: 1px green solid;
+}
