@@ -1,77 +1,78 @@
 import pytest
+
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from locations_po import LocationsPage
+from locations_rest_api import create_location, delete_all_locations
 
-from locations_waits import table_became_empty
-
-import requests
-import uuid
 
 @pytest.fixture
 def driver():
-    requests.delete("http://127.0.0.1:8080/api/locations")
+    delete_all_locations()
 
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
-    driver.get("http://127.0.0.1:8080")    
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))    
     return driver
 
 
 def test_create(driver: webdriver.Chrome):
-    # Given
-    
+    """Teszteset: location létrehozása"""
+
+    page = LocationsPage(driver)
     # When
-    driver.find_element(By.LINK_TEXT, "Create location").click()
-    driver.find_element(By.ID, "location-name").send_keys("Home")
-    driver.find_element(By.ID, "location-coords").send_keys("1,1")
-    driver.find_element(By.CLASS_NAME, "btn-primary").click()
+    page.click_on_create_location()
+    page.fill_create_form("Home", "1,1")
+    page.click_on_create_location_submit()
+
     # Then
-    wait = WebDriverWait(driver, 3)
-    wait.until(EC.text_to_be_present_in_element((By.ID, "message-div"), \
-        "Location has been created"))
-
-    message = driver.find_element(By.ID, "message-div").text
-    assert message == "Location has been created"
-
-    name_cell_text = driver.find_element(By.CSS_SELECTOR, \
-        "#locations-table-tbody > tr > td:nth-child(2)").text
-
-    assert name_cell_text == "Home"
+    page.wait_for_message("Location has been created")
+    
+    name, coords = page.get_first_location()
+    assert name == "Home"
+    assert coords == "1, 1"
 
 def test_create_invalid_name(driver: webdriver.Chrome):
     # Given
+    page = LocationsPage(driver)
 
     # When
-    driver.find_element(By.LINK_TEXT, "Create location").click()
-    driver.find_element(By.CLASS_NAME, "btn-primary").click()
+    page.click_on_create_location()
+    page.click_on_create_location_submit()
+    page.wait_for_name_message("Can not be empty name!")
 
-    wait = WebDriverWait(driver, 3)
-    wait.until(EC.text_to_be_present_in_element((By.ID, "location-name-feedback"), \
-        "Can not be empty name!"))
-    
-    input_field = driver.find_element(By.ID, "location-name")
-    assert "is-invalid" in input_field.get_attribute("class").split()
-
-    # driver.find_element(By.ID, "refresh-button").click()
-
-    wait.until(table_became_empty())
+    assert page.has_name_red_border()    
+    page.wait_for_table_has_rows(0)
 
 
 def test_edit(driver: webdriver.Chrome):
-    name = "Test " + str(uuid.uuid4())
-    data = {"name": name, "coords": "5,5"}
-    requests.post("http://127.0.0.1:8080/api/locations", json=data)
+    # Given: legyen az adatbázisban egy Test... nevű location
+    create_location("Test", "5,5")
 
-    driver.find_element(By.ID, "refresh-button").click()
+    page = LocationsPage(driver)
+    page.wait_for_table_has_rows(1)
 
-    wait = WebDriverWait(driver, 3)
-    link = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, \
-        "#locations-table-tbody > tr > td:nth-child(6) > button.btn.btn-link")))
+    page.click_on_first_edit_button()
+    page.fill_update_form("Test2", "8,8")
+    page.click_on_update_location_submit()
+
+    page.wait_for_message("Location has been modified")
+    page.wait_for_table_has_rows(1)
+
+    name, coords = page.get_first_location()
+    assert name == "Test2"
+    assert coords == "8, 8"
     
-    link.click()
 
+def test_delete(driver: webdriver.Chrome):
+    create_location("Test", "5,5")
+
+    page = LocationsPage(driver)
+    page.wait_for_table_has_rows(1)
     
+    page.click_on_first_delete_button()
+    page.click_on_delete_confirm()
+    page.wait_for_message("Location has been deleted")
+    page.wait_for_table_has_rows(0)
+
+
