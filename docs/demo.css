@@ -1,0 +1,15 @@
+h1 {
+    color: red;
+}
+
+.important {
+    color: green;
+}
+
+.big-font {
+    font-size: 30px;
+}
+
+.lorem::first-line {
+    color: aqua;
+}
